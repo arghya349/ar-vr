@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { XROrigin, useXR, useXRInputSourceState } from "@react-three/xr";
 import * as THREE from "three";
@@ -120,6 +120,18 @@ function VrRigActive({
   input: React.RefObject<MoveInput>;
 }) {
   const ref = useRef<THREE.Group>(null);
+
+  // Reset yaw and snap to the base on VR entry so the user always starts
+  // standing on the ground at the landing site.
+  useEffect(() => {
+    if (input.current) input.current.yaw = 0;
+    const g = ref.current;
+    if (g && feet.current) {
+      g.position.copy(feet.current);
+      g.rotation.y = 0;
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useFrame(() => {
     const g = ref.current;
     if (!g || !feet.current) return;

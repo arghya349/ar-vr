@@ -89,9 +89,28 @@ export default function Game({
   const [rotation, setRotation] = useState(0);
   const [worldVersion, setWorldVersion] = useState(0);
 
+  // WebXR needs a secure origin (https, or localhost). On Vercel that is given;
+  // over plain http on a LAN address navigator.xr is simply absent.
+  const [vrSupport, setVrSupport] = useState<"checking" | "ready" | "unsupported">("checking");
+  useEffect(() => {
+    const xr = (navigator as Navigator & { xr?: { isSessionSupported(m: string): Promise<boolean> } }).xr;
+    if (!xr) {
+      setVrSupport("unsupported");
+      return;
+    }
+    let alive = true;
+    xr.isSessionSupported("immersive-vr")
+      .then((ok) => alive && setVrSupport(ok ? "ready" : "unsupported"))
+      .catch(() => alive && setVrSupport("unsupported"));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const inXR = useRef(false);
   const moveInput = useRef<MoveInput>({ x: 0, z: 0, sprint: false, yaw: 0 });
-  const feet = useRef(new THREE.Vector3());
+  // Start feet at the spawn (base) so VR users begin on the ground at the landing site.
+  const feet = useRef(spawn.clone());
 
   const selectPart = useCallback((i: number) => {
     setHotbarIndex(i);
@@ -133,10 +152,20 @@ export default function Game({
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black">
       <button
-        onClick={() => xrStore.enterVR()}
-        className="absolute bottom-4 right-4 z-10 rounded bg-white/10 px-3 py-1.5 font-mono text-xs text-white/70 hover:bg-white/20"
+        onClick={() => vrSupport === "ready" && xrStore.enterVR()}
+        disabled={vrSupport !== "ready"}
+        title={
+          vrSupport === "ready"
+            ? "Start the headset session"
+            : "No WebXR headset detected on this device"
+        }
+        className={`absolute bottom-4 right-4 z-10 rounded-lg px-5 py-3 font-mono text-sm ${
+          vrSupport === "ready"
+            ? "bg-emerald-400/90 text-black hover:bg-emerald-300"
+            : "cursor-not-allowed bg-white/10 text-white/35"
+        }`}
       >
-        Enter VR
+        {vrSupport === "ready" ? "Enter VR" : vrSupport === "checking" ? "…" : "VR unavailable"}
       </button>
       <Canvas
         dpr={[1, 1.75]}
